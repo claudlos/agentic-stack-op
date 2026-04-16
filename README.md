@@ -33,8 +33,9 @@ nightly dream cycle, and adapters for six harnesses.
 ## Quickstart
 
 ```bash
-# install once
-brew install codejunkie99/agentic-stack/agentic-stack
+# tap + install (one-time)
+brew tap codejunkie99/agentic-stack https://github.com/codejunkie99/agentic-stack
+brew install agentic-stack
 
 # drop the brain into any project
 cd your-project
