@@ -1,10 +1,14 @@
-# agentic-stack
+# agentic-stack-op
 
-Follow me on [@AV1DLIVE](https://twitter.com/AV1DLIVE) for updates/collabs on projects.
-
-[![GitHub release](https://img.shields.io/github/v/release/codejunkie99/agentic-stack)](https://github.com/codejunkie99/agentic-stack/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> **Extends [codejunkie99/agentic-stack](https://github.com/codejunkie99/agentic-stack)**
+> by [@AV1DLIVE](https://twitter.com/AV1DLIVE) (MIT). All original design, seed
+> skills, and review protocol credit to the upstream author. This fork adds a
+> meta-harness layer: eval-gated skill rewrites, structured traces with
+> cross-harness provenance, policy-as-code permissions, a real Hermes bridge,
+> a harness-coverage metric, and a `switchtest` equivalence suite. See the
+> v0.6.0 entry below.
 
 >> **Coded using Minimax-M2.7 in the Claude Code Harness. PR Review by Macroscope and Codex**
 
