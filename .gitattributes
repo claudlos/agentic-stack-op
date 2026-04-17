@@ -1,4 +1,23 @@
 # Force LF line endings for shell scripts and Python so Windows clones
 # (with core.autocrlf=true) don't break shebang parsing on bash/WSL.
-*.sh  text eol=lf
-*.py  text eol=lf
+*.sh        text eol=lf
+*.py        text eol=lf
+
+# JSON config files (permissions.json, eval.json, settings.json, tool
+# schemas) are read by tooling that assumes LF. CRLF would cause noisy
+# diff churn when the installer round-trips through json.load/dump.
+*.json      text eol=lf
+
+# Markdown + YAML: keep LF cross-platform. Windows clones with
+# core.autocrlf=true silently convert on checkout; the matrix pin keeps
+# git diff clean between Windows and Linux committers.
+*.md        text eol=lf
+*.mdc       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.jsonl     text eol=lf
+
+# PowerShell scripts - install.ps1 is invoked by PowerShell which
+# tolerates LF, but CRLF is the platform-native default. Leave unpinned
+# so Windows contributors don't see churn.
+*.ps1       text
