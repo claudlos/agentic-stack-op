@@ -103,41 +103,32 @@ harnesses.
 
 ## Quickstart
 
-### macOS / Linux
+Clone-only for this fork right now. A Homebrew formula is pending a tagged
+tap repo; until then, the install script is the canonical path.
+
+### macOS / Linux / Git Bash
 
 ```bash
-# tap + install (one-time — both lines required)
-brew tap codejunkie99/agentic-stack https://github.com/codejunkie99/agentic-stack
-brew install agentic-stack
-
-# drop the brain into any project — the onboarding wizard runs automatically
-cd your-project
-agentic-stack claude-code
+git clone https://github.com/claudlos/agentic-stack-op.git
+cd agentic-stack-op
+./install.sh claude-code /path/to/your-project
 # or: cursor | windsurf | opencode | openclient | hermes | standalone-python
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-# clone + run the native installer
-git clone https://github.com/codejunkie99/agentic-stack.git
-cd agentic-stack
+git clone https://github.com/claudlos/agentic-stack-op.git
+cd agentic-stack-op
 .\install.ps1 claude-code C:\path\to\your-project
 ```
 
-### Already installed?
+### Upstream stable
 
-```bash
-brew update && brew upgrade agentic-stack
-```
-
-### Clone instead?
-
-```bash
-git clone https://github.com/codejunkie99/agentic-stack.git
-cd agentic-stack && ./install.sh claude-code         # mac / linux / git-bash
-# or on Windows PowerShell: .\install.ps1 claude-code
-```
+The stable base this fork builds on is
+[codejunkie99/agentic-stack](https://github.com/codejunkie99/agentic-stack).
+If you want the v0.5.0 release via Homebrew (no meta-harness layer), follow
+the upstream README - those instructions still work.
 
 ## Onboarding wizard
 
