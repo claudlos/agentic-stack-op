@@ -112,6 +112,18 @@ def extract_pattern(cluster):
     canonical_with_recurrence["recurrence_count"] = len(cluster)
     canonical_salience = salience_score(canonical_with_recurrence)
 
+    # Provenance roll-up: which harnesses and models produced this cluster.
+    # Used by graduate.py to scope a lesson ("only observed in cursor") and
+    # by coverage.py to surface harness-specific blind spots. Unknown is
+    # preserved, not dropped, so pre-provenance episodes stay attributable.
+    harnesses, models, tools = set(), set(), set()
+    for e in cluster:
+        src = e.get("source") or {}
+        harnesses.add(src.get("harness") or "unknown")
+        models.add(src.get("model") or "unknown")
+        if e.get("tool"):
+            tools.add(e["tool"])
+
     return {
         "id": pattern_id,
         "name": name,
@@ -120,4 +132,7 @@ def extract_pattern(cluster):
         "evidence_ids": [e.get("timestamp", "") for e in cluster if e.get("timestamp")],
         "cluster_size": len(cluster),
         "canonical_salience": canonical_salience,
+        "harnesses": sorted(harnesses),
+        "models": sorted(models),
+        "tools": sorted(tools),
     }

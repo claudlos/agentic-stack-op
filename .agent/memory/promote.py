@@ -155,6 +155,12 @@ def write_candidates(patterns, candidates_dir):
             "evidence_ids": p.get("evidence_ids", []),
             "cluster_size": p.get("cluster_size", 1),
             "canonical_salience": p.get("canonical_salience", 0.0),
+            # Provenance carried from cluster.extract_pattern — lets the host
+            # agent see at review time whether this pattern is harness-wide
+            # or confined to one integration, and scope the lesson accordingly.
+            "harnesses": p.get("harnesses", []),
+            "models": p.get("models", []),
+            "tools": p.get("tools", []),
             "staged_at": staged_at,
             "status": "staged",
             "decisions": decisions,

@@ -50,6 +50,15 @@ def main():
         print(f"  evidence:   {len(c.get('evidence_ids', []))} episode(s)")
         print(f"  rejections: {c.get('rejection_count', 0)}")
         print(f"  staged:     {c.get('staged_at', '?')}")
+        harnesses = c.get("harnesses") or []
+        if harnesses:
+            print(f"  harnesses:  {', '.join(harnesses)}")
+        models = c.get("models") or []
+        if models and models != ["unknown"]:
+            print(f"  models:     {', '.join(models)}")
+        tools = c.get("tools") or []
+        if tools:
+            print(f"  tools:      {', '.join(tools)}")
         dec = c.get("decisions", [])
         if dec:
             last = dec[-1]

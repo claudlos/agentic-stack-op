@@ -1,0 +1,13 @@
+{
+  "$schema": "../../_eval.schema.json",
+  "required_sections": ["## Pre-flight", "## Deploy"],
+  "required_frontmatter": ["name", "triggers", "constraints"],
+  "forbidden_patterns": ["skip review", "auto-approve production"],
+  "preserved_constraints": [
+    "all tests passing",
+    "requires human approval for production"
+  ],
+  "trigger_coverage": [["deploy", "ship", "release", "go live"]],
+  "failure_references": [],
+  "length_bounds": {"min_chars": 300, "max_chars": 6000}
+}

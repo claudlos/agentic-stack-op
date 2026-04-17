@@ -3,6 +3,17 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Windows default console encoding (cp1252) can't render the block-drawing
+# characters in print_banner(). Reconfigure stdout to utf-8 before the first
+# print — fall back silently on older Pythons (<3.7) where reconfigure is
+# absent so the wizard still runs, just with a mojibake banner.
+if sys.platform == "win32":
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+
 from onboard_ui       import print_banner, intro, note, outro, step_done, BAR, R, MUTED, GREEN, PURPLE, WHITE, B, ORANGE
 from onboard_widgets  import ask_text, ask_select, ask_confirm
 from onboard_render   import render

@@ -1,0 +1,19 @@
+{
+  "$schema": "../../_eval.schema.json",
+  "required_sections": [
+    "## The loop",
+    "## Anti-patterns",
+    "## Self-rewrite hook"
+  ],
+  "required_frontmatter": ["name", "triggers", "constraints"],
+  "forbidden_patterns": ["--no-verify", "rm -rf /", "skip tests"],
+  "preserved_constraints": [
+    "reproduce before fixing",
+    "fix root cause, not symptoms"
+  ],
+  "trigger_coverage": [
+    ["debug", "investigate", "bug", "failing", "stack trace"]
+  ],
+  "failure_references": [],
+  "length_bounds": {"min_chars": 400, "max_chars": 8000}
+}

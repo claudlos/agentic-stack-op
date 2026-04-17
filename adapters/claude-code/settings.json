@@ -1,5 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "AGENT_HARNESS": "claude-code"
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -7,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .agent/tools/memory_reflect.py claude-code post-tool ok"
+            "command": "python .agent/tools/memory_reflect.py --stdin --skill claude-code --action post-tool --outcome ok --harness claude-code"
           }
         ]
       }
@@ -18,16 +21,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .agent/memory/auto_dream.py"
+            "command": "python .agent/memory/auto_dream.py"
           }
         ]
       }
     ]
   },
   "permissions": {
-    "deny": [
-      "Bash(git push --force*)",
-      "Bash(rm -rf /*)"
-    ]
+    "deny": [],
+    "_generated_by_agentic_stack": "permissions.deny is rendered from .agent/protocols/permissions.json during install; run `python .agent/tools/render_claude_settings.py <this-file>` after editing the JSON to refresh."
   }
 }

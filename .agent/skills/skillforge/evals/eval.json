@@ -1,0 +1,12 @@
+{
+  "$schema": "../../_eval.schema.json",
+  "required_frontmatter": ["name", "triggers", "constraints"],
+  "forbidden_patterns": ["duplicate existing skills"],
+  "preserved_constraints": [
+    "do not duplicate existing skills",
+    "always include self-rewrite hook"
+  ],
+  "trigger_coverage": [["create skill", "new skill", "build skill"]],
+  "failure_references": [],
+  "length_bounds": {"min_chars": 300, "max_chars": 6000}
+}

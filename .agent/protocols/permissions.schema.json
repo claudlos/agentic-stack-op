@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-stack.dev/schemas/permissions.schema.json",
+  "title": "agentic-stack permissions policy",
+  "description": "Source-of-truth permission policy. pre_tool_call.py, permissions_render.py, and render_claude_settings.py all read this shape.",
+  "type": "object",
+  "required": ["version", "always_allowed", "requires_approval", "never_allowed"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "version": {"type": "integer", "minimum": 1},
+    "note": {"type": "string"},
+    "always_allowed": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 3},
+      "description": "Human-readable actions that never require approval."
+    },
+    "requires_approval": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 3},
+      "description": "Actions that the agent may attempt but a human must greenlight."
+    },
+    "never_allowed": {
+      "type": "array",
+      "description": "Hard denies. Each entry may be a plain string (legacy) or a structured block with patterns/targets/keywords for richer matching.",
+      "items": {
+        "oneOf": [
+          {"type": "string", "minLength": 3},
+          {
+            "type": "object",
+            "required": ["rule"],
+            "properties": {
+              "rule": {"type": "string", "minLength": 3,
+                "description": "Human-readable summary; appears in block messages and rendered markdown."},
+              "patterns": {
+                "type": "array",
+                "items": {"type": "string",
+                  "pattern": "^[A-Za-z_]+\\(.+\\)$",
+                  "description": "Claude-Code-style pattern, e.g. Bash(git push --force*). The pattern is used by both the pre_tool_call hook (via fnmatch) and the rendered settings.json deny list."
+                }
+              },
+              "targets": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Literal values (branch names, env names) that match args.branch/args.target/args.env."
+              },
+              "keywords": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Fallback keyword set for the markdown-only enforcement path. 2+ matches in the call description triggers a block."
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "approved_domains": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-zA-Z0-9.-]+$"},
+      "description": "Hosts that HTTP tools may reach. Anything outside this list is implicitly denied."
+    }
+  },
+  "additionalProperties": false
+}

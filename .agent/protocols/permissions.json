@@ -1,0 +1,61 @@
+{
+  "$schema": "./permissions.schema.json",
+  "version": 1,
+  "note": "Source of truth for permissions. Edit this file; run `python .agent/tools/permissions_render.py` to regenerate permissions.md and adapter deny rules. Humans edit, agents never do.",
+  "always_allowed": [
+    "Read any file in the project directory.",
+    "Run tests.",
+    "Create branches.",
+    "Write to `memory/` and `skills/` directories.",
+    "Create draft pull requests.",
+    "Read public HTTP APIs in the approved domains list."
+  ],
+  "requires_approval": [
+    "Merge pull requests.",
+    "Deploy to any environment (staging, production).",
+    "Delete files outside of `memory/working/`.",
+    "Install new dependencies or upgrade pinned versions.",
+    "Modify CI/CD configuration.",
+    "Run database migrations."
+  ],
+  "never_allowed": [
+    {
+      "rule": "Force push to main, production, or staging.",
+      "patterns": ["Bash(git push --force*)", "Bash(git push -f *)"],
+      "targets": ["main", "production", "staging"],
+      "keywords": ["force", "push", "main", "production", "staging"]
+    },
+    {
+      "rule": "Access secrets or credentials directly (use env vars through the shell only).",
+      "keywords": ["secret", "credential", "password", "token"]
+    },
+    {
+      "rule": "Send HTTP requests to domains not on the approved list.",
+      "keywords": ["http", "request", "fetch", "curl"]
+    },
+    {
+      "rule": "Modify permissions.json or permissions.md (only humans edit these).",
+      "keywords": ["permissions", "modify", "edit"]
+    },
+    {
+      "rule": "Disable or bypass pre_tool_call hooks.",
+      "keywords": ["disable", "bypass", "pre_tool_call", "hook"]
+    },
+    {
+      "rule": "Delete entries from episodic or semantic memory (archive, don't delete).",
+      "keywords": ["delete", "episodic", "semantic", "memory"]
+    },
+    {
+      "rule": "Destructive recursive deletes at root.",
+      "patterns": ["Bash(rm -rf /*)", "Bash(rm -rf ~/*)", "Bash(rm -rf /)"],
+      "keywords": ["rm", "recursive", "root"]
+    }
+  ],
+  "approved_domains": [
+    "api.github.com",
+    "registry.npmjs.org",
+    "pypi.org",
+    "api.anthropic.com",
+    "api.openai.com"
+  ]
+}

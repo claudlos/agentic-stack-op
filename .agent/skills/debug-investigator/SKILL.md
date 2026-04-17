@@ -37,3 +37,14 @@ is how false fixes ship.
 If the same class of bug appears 3+ times (timezone bugs, race conditions,
 off-by-one), promote a lesson to `LESSONS.md` and update this skill with
 a domain-specific sub-procedure.
+
+When `on_failure` flags this skill (3+ failures in 14 days, `rewrite_flag`
+set on the latest episode), run the evolve loop:
+
+    python .agent/tools/evolve.py prepare debug-investigator
+    # write your rewrite to .agent/skills/debug-investigator/candidate-SKILL.md
+    python .agent/tools/evolve.py compare debug-investigator \
+        --candidate .agent/skills/debug-investigator/candidate-SKILL.md
+    python .agent/tools/evolve.py accept debug-investigator --candidate ...
+
+The score must not regress. See `docs/meta-harness.md` for the axes.

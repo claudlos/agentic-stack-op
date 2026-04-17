@@ -48,6 +48,36 @@ harnesses.
 - **Protocols** — typed tool schemas, a `permissions.md` that the
   pre-tool-call hook enforces, and a delegation contract for sub-agents.
 
+## What's new in v0.6.0 (meta-harness)
+
+- **Evolve loop.** `.agent/tools/evolve.py` + per-skill `evals/eval.json`
+  let flagged skills get rewritten with a deterministic score gate. No
+  LLM in the loop; see `docs/meta-harness.md`.
+- **Structured traces + cross-harness provenance.** Episodic entries now
+  carry `tool`, `tool_args`, `tool_output`, `duration_ms`, `exit_code`,
+  `source.harness`, `source.model`. Clusters and candidates carry the
+  harness / model / tool roll-up, so graduation can scope a lesson to
+  one harness when the evidence only comes from there.
+- **Policy-as-code permissions.** `protocols/permissions.json` is the
+  source of truth; `permissions.md` and the Claude Code deny list are
+  rendered via `tools/permissions_render.py`. CI catches drift.
+- **Hermes bridge.** `tools/hermes_sync.py` mirrors accepted lessons +
+  preferences into Hermes's `MEMORY.md` / `USER.md` between HTML
+  sentinels. Idempotent, `state.db` untouched.
+- **Harness-coverage metric.** `tools/coverage.py` writes
+  `memory/working/COVERAGE.md`: guide %, sensor %, harness mix, dead
+  skills, rewrite-flagged list. Answers Fowler's "what's the harness
+  equivalent of code coverage?".
+- **switchtest equivalence suite.** `examples/switchtest/run_switchtest.py`
+  proves install-parity, trace-parity, cluster-parity, and permission-
+  safety-parity across adapters. Runs in CI.
+- **CI on Linux + Windows.** `.github/workflows/ci.yml` runs the full
+  smoke suite on both shells so the "Windows-native" claim is enforced,
+  not aspirational.
+- **Windows fixes.** Installer now probes `python` / `python3` by
+  running `--version` so the MS Store stub alias can't get baked into
+  hook commands. Wizard reconfigures stdout to UTF-8 on Windows.
+
 ## What's new in v0.5.0
 
 - **Host-agent review protocol.** Python handles filing (cluster, stage,

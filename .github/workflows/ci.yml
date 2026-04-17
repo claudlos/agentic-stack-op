@@ -1,0 +1,113 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # Deterministic checks - no network calls, no LLM, no adapter installs.
+  # Fast tier so contributor PRs get signal in <60s.
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Import smoke test
+        run: |
+          # Every module must import without side effects. Catches the class
+          # of bug where someone ships a broken hook that only fails once a
+          # real tool call fires it.
+          python - <<'PY'
+          import sys, os
+          sys.path.insert(0, ".agent/harness")
+          sys.path.insert(0, ".agent/memory")
+          sys.path.insert(0, ".agent/tools")
+          from hooks.post_execution import log_execution
+          from hooks.on_failure import on_failure
+          from hooks.pre_tool_call import check_tool_call
+          from hooks._provenance import build_source, harness, model
+          import cluster, promote, validate, review_state, render_lessons
+          import memory_reflect, evolve, coverage, permissions_render
+          import hermes_sync, graduate, list_candidates, skill_loader
+          print("all modules import cleanly")
+          PY
+
+      - name: Schema validation
+        run: |
+          # Typos in permissions.json / eval.json silently downgrade
+          # enforcement - an unknown key is just ignored. The validator
+          # turns each into a CI failure.
+          python .agent/tools/validate_schemas.py --verbose
+
+      - name: Permissions policy lint
+        run: |
+          # `--check` exits non-zero when the rendered markdown or deny
+          # JSON differs from what the source JSON would produce. Catches
+          # the drift class where someone edits permissions.md by hand.
+          python .agent/tools/permissions_render.py --check
+
+      - name: Switchtest equivalence suite
+        run: python examples/switchtest/run_switchtest.py
+
+      - name: Eval score on seed skills
+        run: |
+          # Every seed skill must score >= 0 against its eval baseline.
+          # Negative would mean a forbidden pattern or length violation
+          # snuck in - that's a regression the eval harness is there to
+          # catch. We don't assert a fixed threshold because seed skills
+          # evolve, but sign of the number matters.
+          set -e
+          for skill in debug-investigator git-proxy deploy-checklist memory-manager skillforge; do
+            total=$(python .agent/tools/evolve.py score "$skill" --json | python -c 'import json,sys;print(json.load(sys.stdin)["total"])')
+            echo "  $skill -> $total"
+            if [ "$total" -lt 0 ]; then
+              echo "REGRESSION: $skill scored $total"
+              exit 1
+            fi
+          done
+
+  # Adapter install smoke tests across both shell flavours. Catches the
+  # class of bug where install.sh works on Linux/mac but install.ps1
+  # silently does nothing on Windows, or vice versa.
+  install-smoke-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install each adapter into a fresh target
+        shell: bash
+        run: |
+          set -e
+          for adapter in claude-code cursor windsurf opencode openclient hermes standalone-python; do
+            target=$(mktemp -d)
+            bash install.sh "$adapter" "$target" --yes
+            test -d "$target/.agent" || { echo ".agent not created for $adapter"; exit 1; }
+            echo "ok: $adapter"
+          done
+
+  install-smoke-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install each adapter via install.ps1
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($adapter in 'claude-code','cursor','windsurf','opencode','openclient','hermes','standalone-python') {
+            $target = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP "install-$adapter-$(Get-Random)") -Force
+            .\install.ps1 $adapter $target.FullName -Yes
+            if (-not (Test-Path (Join-Path $target.FullName '.agent') -PathType Container)) {
+              Write-Error ".agent not created for $adapter"
+              exit 1
+            }
+            Write-Host "ok: $adapter"
+          }

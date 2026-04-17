@@ -27,3 +27,15 @@ venv/
 # Placed AFTER the negation above so the later rule wins.
 .agent/memory/.index/
 .agent/memory/.index/**
+
+# Python bytecode under .agent/ - the memory negation above would otherwise
+# let __pycache__ dirs through. These always regenerate; never commit them.
+.agent/**/__pycache__/
+.agent/**/*.py[cod]
+
+# Auto-generated review + coverage artefacts. Written by auto_dream.py on
+# every cycle and by coverage.py - committing them would create per-machine
+# churn that drowns real changes in git log.
+.agent/memory/working/REVIEW_QUEUE.md
+.agent/memory/working/COVERAGE.md
+.agent/memory/working/coverage.json

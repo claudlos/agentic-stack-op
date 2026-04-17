@@ -11,6 +11,11 @@ than looking novel each time.
 """
 import os, json, datetime, hashlib
 
+# How long to look back when scanning episodic entries for rewrite flags.
+# Matches FAILURE_WINDOW_DAYS in on_failure.py so a flagged skill stays
+# visible in REVIEW_QUEUE for the same window it took to accumulate.
+_REWRITE_LOOKBACK_DAYS = 14
+
 
 def _now():
     return datetime.datetime.now().isoformat()
@@ -223,43 +228,123 @@ def list_candidates(candidates_dir, status="staged", sort_by="priority"):
     return out
 
 
+def _rewrite_flagged_skills(candidates_dir):
+    """Scan recent episodic entries for skills flagged by on_failure.
+
+    The rewrite flag lives on individual entries; this rolls it up to a
+    per-skill view the reviewer actually wants to see. A skill appears
+    here if any entry within the lookback window has rewrite_flag=True
+    AND no subsequent successful entry has re-set the streak. The
+    second clause avoids surfacing skills that have already recovered.
+    """
+    # candidates_dir is memory/candidates/; episodic sits next to it.
+    memory_dir = os.path.dirname(candidates_dir)
+    episodic = os.path.join(memory_dir, "episodic", "AGENT_LEARNINGS.jsonl")
+    if not os.path.exists(episodic):
+        return []
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=_REWRITE_LOOKBACK_DAYS)
+    # Per-skill: latest-flag timestamp and latest-success timestamp.
+    # The flag stays live iff its timestamp > the most recent success.
+    flagged_at = {}
+    success_at = {}
+    for line in open(episodic):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        try:
+            ts = datetime.datetime.fromisoformat(e["timestamp"])
+        except (KeyError, ValueError):
+            continue
+        if ts < cutoff:
+            continue
+        skill = e.get("skill")
+        if not skill:
+            continue
+        if e.get("rewrite_flag"):
+            prev = flagged_at.get(skill)
+            if prev is None or ts > prev:
+                flagged_at[skill] = ts
+        if e.get("result") == "success":
+            prev = success_at.get(skill)
+            if prev is None or ts > prev:
+                success_at[skill] = ts
+    live = []
+    for skill, ts in flagged_at.items():
+        if success_at.get(skill, datetime.datetime.min) < ts:
+            live.append((skill, ts))
+    live.sort(key=lambda kv: kv[1], reverse=True)
+    return [{"skill": s, "flagged_at": t.isoformat(timespec="seconds")}
+            for s, t in live]
+
+
 def write_review_queue_summary(candidates_dir, summary_path):
     """Emit a compact REVIEW_QUEUE.md so the host agent sees the backlog.
 
     On-demand review without a surfacing mechanism grows silent backlog.
     This file sits in memory/working/ and gets loaded by context_budget into
-    every host session — impossible to miss.
+    every host session - impossible to miss.
+
+    Also surfaces skills that on_failure has flagged for rewrite. Those
+    need review attention just as much as pending candidates do, and
+    without this section they only show up in COVERAGE.md which isn't
+    always loaded.
     """
     pending = list_candidates(candidates_dir, status="staged")
+    flagged = _rewrite_flagged_skills(candidates_dir)
     os.makedirs(os.path.dirname(summary_path), exist_ok=True)
-    if not pending:
+    if not pending and not flagged:
         with open(summary_path, "w") as f:
-            f.write("# Review Queue\n\n_No pending candidates._\n")
+            f.write("# Review Queue\n\n_No pending candidates, no skills "
+                    "flagged for rewrite._\n")
         return 0
 
-    staged_ats = [c.get("staged_at", "") for c in pending if c.get("staged_at")]
-    oldest = min(staged_ats) if staged_ats else ""
     lines = ["# Review Queue", ""]
-    lines.append(f"**Pending:** {len(pending)}")
-    if oldest:
-        lines.append(f"**Oldest staged:** {oldest}")
+    lines.append(f"**Pending candidates:** {len(pending)}")
+    lines.append(f"**Skills flagged for rewrite:** {len(flagged)}")
+    if pending:
+        staged_ats = [c.get("staged_at", "") for c in pending if c.get("staged_at")]
+        if staged_ats:
+            lines.append(f"**Oldest staged:** {min(staged_ats)}")
     lines.append("")
-    lines.append("Run `python .agent/tools/list_candidates.py` for detail, then:")
-    lines.append("- `python .agent/tools/graduate.py <id> --rationale \"...\"` to accept")
-    lines.append("- `python .agent/tools/reject.py <id> --reason \"...\"` to reject")
-    lines.append("- Review in a batch so cross-candidate contradictions are caught.")
-    lines.append("")
-    lines.append("## Priority order (top 10)")
-    lines.append("")
-    for cand in pending[:10]:
-        prio = candidate_priority(cand)
-        claim_preview = (cand.get("claim") or "")[:80]
-        lines.append(
-            f"- **{cand.get('id')}** (priority={prio:.2f}, "
-            f"size={cand.get('cluster_size', '?')}, "
-            f"rejections={cand.get('rejection_count', 0)}) "
-            f"— {claim_preview}"
-        )
+
+    if flagged:
+        lines.append("## Skills flagged for rewrite")
+        lines.append("")
+        lines.append("`on_failure` recorded >= 3 failures in 14d on these "
+                     "skills. Run the evolve loop on each:")
+        lines.append("")
+        for f in flagged:
+            lines.append(
+                f"- **{f['skill']}**  _(flagged {f['flagged_at']})_  "
+                f"-> `python .agent/tools/evolve.py prepare {f['skill']}`"
+            )
+        lines.append("")
+        lines.append("See `docs/meta-harness.md` for the rewrite loop.")
+        lines.append("")
+
+    if pending:
+        lines.append("## Pending candidates")
+        lines.append("")
+        lines.append("Run `python .agent/tools/list_candidates.py` for detail, then:")
+        lines.append("- `python .agent/tools/graduate.py <id> --rationale \"...\"` to accept")
+        lines.append("- `python .agent/tools/reject.py <id> --reason \"...\"` to reject")
+        lines.append("- Review in a batch so cross-candidate contradictions are caught.")
+        lines.append("")
+        lines.append("### Priority order (top 10)")
+        lines.append("")
+        for cand in pending[:10]:
+            prio = candidate_priority(cand)
+            claim_preview = (cand.get("claim") or "")[:80]
+            lines.append(
+                f"- **{cand.get('id')}** (priority={prio:.2f}, "
+                f"size={cand.get('cluster_size', '?')}, "
+                f"rejections={cand.get('rejection_count', 0)}) "
+                f"- {claim_preview}"
+            )
     with open(summary_path, "w") as f:
         f.write("\n".join(lines) + "\n")
     return len(pending)

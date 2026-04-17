@@ -41,11 +41,44 @@ if [[ ! -d "$TARGET/.agent" ]]; then
   echo "  + .agent/ (portable brain)"
 fi
 
+# Pick the python binary the hooks will actually use on this box. We don't
+# just trust `command -v` — on Windows under git-bash, `python3` resolves to
+# the Microsoft Store app-execution alias, which exists as a stub but prints
+# "Python was not found" when invoked. Probe with --version so a non-working
+# stub doesn't get baked into settings.json.
+_check_py() {
+  command -v "$1" >/dev/null 2>&1 && "$1" --version >/dev/null 2>&1
+}
+if _check_py python3; then
+  PY_BIN="python3"
+elif _check_py python; then
+  PY_BIN="python"
+else
+  PY_BIN="python3"
+  echo "warning: no working python interpreter on PATH; hooks will fail until you install one." >&2
+fi
+
 case "$ADAPTER" in
   claude-code)
     cp "$SRC/CLAUDE.md" "$TARGET/CLAUDE.md"
     mkdir -p "$TARGET/.claude"
     cp "$SRC/settings.json" "$TARGET/.claude/settings.json"
+    # Substitute the detected python binary into hook commands. sed on
+    # BSD/mac requires an explicit empty suffix for -i; pass -e so both
+    # GNU and BSD take the same invocation.
+    sed -i.bak -e "s|\"command\": \"python |\"command\": \"$PY_BIN |g" \
+      "$TARGET/.claude/settings.json"
+    rm -f "$TARGET/.claude/settings.json.bak"
+    # Render permissions.json deny patterns into settings.json so the
+    # Claude Code permission engine and the pre_tool_call hook read the
+    # same source of truth. Silent failure is acceptable here - the hook
+    # still enforces JSON policy even if the UI block list is stale.
+    if [ -f "$TARGET/.agent/protocols/permissions.json" ]; then
+      "$PY_BIN" "$TARGET/.agent/tools/render_claude_settings.py" \
+        "$TARGET/.claude/settings.json" \
+        "$TARGET/.agent/protocols/permissions.json" >/dev/null || \
+        echo "warning: failed to merge permissions into settings.json" >&2
+    fi
     ;;
   cursor)
     mkdir -p "$TARGET/.cursor/rules"
@@ -81,10 +114,10 @@ if [[ ! -f "$ONBOARD_PY" ]]; then
   echo "tip: customize $TARGET/$( echo '.agent/memory/personal/PREFERENCES.md' ) with your conventions."
   exit 0
 fi
-if ! command -v python3 &>/dev/null; then
-  echo "tip: python3 not found — edit .agent/memory/personal/PREFERENCES.md manually."
+if ! _check_py "$PY_BIN"; then
+  echo "tip: no working python interpreter — edit .agent/memory/personal/PREFERENCES.md manually."
   exit 0
 fi
 
 # exec replaces this shell; no return needed
-exec python3 "$ONBOARD_PY" "$TARGET" $WIZARD_FLAGS
+exec "$PY_BIN" "$ONBOARD_PY" "$TARGET" $WIZARD_FLAGS

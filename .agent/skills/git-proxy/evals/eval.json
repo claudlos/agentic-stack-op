@@ -1,0 +1,20 @@
+{
+  "$schema": "../../_eval.schema.json",
+  "required_sections": [
+    "## Commit",
+    "## Push",
+    "## Self-rewrite hook"
+  ],
+  "required_frontmatter": ["name", "triggers", "constraints"],
+  "forbidden_patterns": ["--no-verify", "force push to main", "git add -A"],
+  "preserved_constraints": [
+    "never force push to main",
+    "run tests before push"
+  ],
+  "trigger_coverage": [
+    ["commit", "push"],
+    ["branch", "merge", "rebase"]
+  ],
+  "failure_references": [],
+  "length_bounds": {"min_chars": 300, "max_chars": 6000}
+}

@@ -1,0 +1,9 @@
+{
+  "deny": [
+    "Bash(git push --force*)",
+    "Bash(git push -f *)",
+    "Bash(rm -rf /*)",
+    "Bash(rm -rf ~/*)",
+    "Bash(rm -rf /)"
+  ]
+}

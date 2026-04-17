@@ -46,6 +46,10 @@ def main():
                    help="Accept as provisional (probationary) rather than full.")
     p.add_argument("--supersedes", default=None,
                    help="ID of an existing lesson this replaces.")
+    p.add_argument("--scope-to-harness", default=None,
+                   help="Record that this lesson only applies when running "
+                        "under the named harness (e.g. 'cursor'). Stored on "
+                        "the lesson as `applies_to_harness`.")
     args = p.parse_args()
 
     cand_path = os.path.join(CANDIDATES, f"{args.candidate_id}.json")
@@ -114,6 +118,11 @@ def main():
         "contradiction_count": 0,
         "supersedes": args.supersedes,
         "source_candidate": args.candidate_id,
+        # Provenance from the candidate. applies_to_harness is the user's
+        # explicit scope decision; observed_* are the raw facts from evidence.
+        "observed_harnesses": cand.get("harnesses", []),
+        "observed_models": cand.get("models", []),
+        "applies_to_harness": args.scope_to_harness,
     }
     append_lesson(lesson, SEMANTIC)
     md_path = render_lessons(SEMANTIC)

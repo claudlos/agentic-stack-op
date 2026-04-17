@@ -47,12 +47,55 @@ if (-not (Test-Path $TargetAgent -PathType Container)) {
     Write-Host "  + .agent/ (portable brain)"
 }
 
+# Pick the python binary the hooks will actually use on this box. Probe with
+# --version — `python3` on Windows often resolves to the MS Store app-execution
+# alias that prints "Python was not found" when invoked, so Get-Command alone
+# lies to us. We trust only binaries that successfully answer --version.
+function Test-PythonBinary($name) {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if (-not $cmd) { return $false }
+    try {
+        $out = & $name --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and "$out" -match '^Python ') { return $true }
+    } catch { }
+    return $false
+}
+if (Test-PythonBinary 'python') {
+    $PyBin = 'python'
+} elseif (Test-PythonBinary 'python3') {
+    $PyBin = 'python3'
+} else {
+    $PyBin = 'python'
+    Write-Warning "no working python interpreter on PATH; hooks will fail until you install one."
+}
+
 switch ($Adapter) {
     'claude-code' {
         Copy-Item (Join-Path $Src 'CLAUDE.md') (Join-Path $TargetDir 'CLAUDE.md') -Force
         $claudeDir = Join-Path $TargetDir '.claude'
         New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
-        Copy-Item (Join-Path $Src 'settings.json') (Join-Path $claudeDir 'settings.json') -Force
+        $settingsDst = Join-Path $claudeDir 'settings.json'
+        Copy-Item (Join-Path $Src 'settings.json') $settingsDst -Force
+        # Substitute the detected python binary into hook commands. We read
+        # raw text rather than parsing JSON so preserved formatting + schema
+        # fields survive round-tripping.
+        $raw = Get-Content -Raw $settingsDst
+        $patched = $raw -replace '"command": "python ', ('"command": "' + $PyBin + ' ')
+        if ($patched -ne $raw) {
+            Set-Content -NoNewline -Path $settingsDst -Value $patched
+        }
+        # Render permissions.json deny patterns into settings.json so the
+        # two layers (Claude Code permission engine + pre_tool_call hook)
+        # can't drift.
+        $permissionsJson = Join-Path $TargetDir '.agent/protocols/permissions.json'
+        $renderScript = Join-Path $TargetDir '.agent/tools/render_claude_settings.py'
+        if ((Test-Path $permissionsJson) -and (Test-Path $renderScript)) {
+            try {
+                & $PyBin $renderScript $settingsDst $permissionsJson | Out-Null
+            } catch {
+                Write-Warning "failed to merge permissions into settings.json: $_"
+            }
+        }
     }
     'cursor' {
         $rulesDir = Join-Path $TargetDir '.cursor/rules'

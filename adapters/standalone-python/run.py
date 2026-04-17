@@ -1,7 +1,12 @@
 """Standalone harness entrypoint. Use when you want full ownership of the loop."""
 import sys, os
 
-# find project root — works whether run.py is at repo root or installed elsewhere
+# Tag every episodic entry + trace with this harness so cross-harness
+# analysis can attribute behaviour correctly. setdefault so an explicit
+# AGENT_HARNESS in the environment still wins (subshell test runners etc.).
+os.environ.setdefault("AGENT_HARNESS", "standalone-python")
+
+# find project root - works whether run.py is at repo root or installed elsewhere
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = HERE
 for _ in range(3):

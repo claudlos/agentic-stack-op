@@ -1,0 +1,14 @@
+{
+  "$schema": "../../_eval.schema.json",
+  "required_frontmatter": ["name", "triggers", "constraints"],
+  "forbidden_patterns": ["delete high-salience", "merge personal into semantic"],
+  "preserved_constraints": [
+    "do not delete high-salience entries",
+    "do not merge personal into semantic"
+  ],
+  "trigger_coverage": [
+    ["reflect", "remember", "compress", "distill", "what did I learn"]
+  ],
+  "failure_references": [],
+  "length_bounds": {"min_chars": 300, "max_chars": 6000}
+}

@@ -2,18 +2,19 @@
 
 Responsibilities (in order):
   1. load episodic entries
-  2. cluster + extract → structured patterns
+  2. cluster + extract -> structured patterns
   3. stage candidates (lifecycle metadata baked in)
   4. heuristic prefilter (length + exact-duplicate; obvious junk goes to rejected/)
   5. decay old episodes + archive stale workspace
   6. write REVIEW_QUEUE.md summary so the next host session sees the backlog
+  7. refresh COVERAGE.md so guide/sensor metrics + rewrite flags stay current
 
 Never:
   - subjective validation (host agent reviews via CLI tools)
   - promotion to LESSONS.md (graduate.py does that)
   - git commit (unattended repo writes are dangerous on a host hook)
 """
-import json, os
+import json, os, subprocess, sys
 from promote import cluster_and_extract, write_candidates
 from validate import heuristic_check
 from review_state import mark_rejected, write_review_queue_summary
@@ -85,13 +86,35 @@ def _heuristic_prefilter(candidates_dir, semantic_dir):
     return rejected
 
 
+def _refresh_coverage():
+    """Regenerate COVERAGE.md alongside REVIEW_QUEUE.md.
+
+    Runs coverage.py as a subprocess so its module-level pathing stays
+    independent of auto_dream's sys.path. Swallow failures - coverage is
+    observability, not a gate; a broken coverage run must not break the
+    dream cycle that the host agent relies on for review state.
+    """
+    coverage_tool = os.path.normpath(
+        os.path.join(ROOT, "..", "tools", "coverage.py"))
+    if not os.path.exists(coverage_tool):
+        return
+    try:
+        subprocess.run(
+            [sys.executable, coverage_tool],
+            capture_output=True, timeout=20, check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+
+
 def run_dream_cycle():
     entries = _load_entries()
     if not entries:
-        # Still refresh the review queue — candidates may have been staged in
+        # Still refresh the review queue - candidates may have been staged in
         # a previous cycle and the host agent loads REVIEW_QUEUE.md into every
         # session via build_context, so a stale/missing file hides real work.
         pending = write_review_queue_summary(CANDIDATES, REVIEW_QUEUE)
+        _refresh_coverage()
         print(f"dream cycle: no entries (queue has {pending} pending)")
         return
 
@@ -110,6 +133,7 @@ def run_dream_cycle():
         archive_dir=os.path.join(ROOT, "episodic/snapshots"))
 
     pending = write_review_queue_summary(CANDIDATES, REVIEW_QUEUE)
+    _refresh_coverage()
 
     print(
         f"dream cycle: patterns={len(patterns)} staged={staged} "

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-stack.dev/schemas/eval.schema.json",
+  "title": "agentic-stack skill eval",
+  "description": "Per-skill evaluation config consumed by .agent/tools/evolve.py. Lives at skills/<name>/evals/eval.json.",
+  "type": "object",
+  "properties": {
+    "required_sections": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Markdown section headers that must remain in SKILL.md (+10 each)."
+    },
+    "required_frontmatter": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "YAML frontmatter keys that must exist (+5 each)."
+    },
+    "forbidden_patterns": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Substrings that must NOT appear (-20 each). Use for dangerous commands the skill should never recommend."
+    },
+    "preserved_constraints": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Constraints that must survive rewrites (+15 / -5). Skill authors pick the ones they care most about."
+    },
+    "trigger_coverage": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {"type": "string", "minLength": 1},
+        "minItems": 1
+      },
+      "description": "Keyword groups; at least one keyword per group must appear in the skill text (+5 per group)."
+    },
+    "failure_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["keywords"],
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1
+          },
+          "min_count": {"type": "integer", "minimum": 1, "default": 1}
+        },
+        "additionalProperties": false
+      },
+      "description": "Static reference keywords (+5 if met, -10 if not). Dynamic failure keywords from AGENT_LEARNINGS.jsonl are layered on top by evolve.py at score time."
+    },
+    "length_bounds": {
+      "type": "object",
+      "properties": {
+        "min_chars": {"type": "integer", "minimum": 0},
+        "max_chars": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false,
+      "description": "-50 if under min_chars, -1 per 100 chars over max_chars."
+    }
+  },
+  "additionalProperties": false
+}
