@@ -1,36 +1,176 @@
 #!/usr/bin/env bash
-# install.sh — copy an adapter into the consuming project, then run the onboarding wizard
-# Usage: ./install.sh <adapter-name> [target-dir] [--yes] [--reconfigure]
-#   adapter-name:  claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
-#   target-dir:    where your project lives (default: current dir)
-#   --yes          accept all wizard defaults without prompting (safe for CI)
-#   --reconfigure  re-run the wizard even if PREFERENCES.md is already filled
+# install.sh - copy an adapter into the consuming project, then run the onboarding wizard
+# Usage: ./install.sh <adapter-name> [target-dir] [--new-project NAME] [--yes] [--reconfigure]
+#   adapter-name:       claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
+#   target-dir:         where your project lives (default: current dir)
+#   --new-project NAME  create a fresh dir NAME, git init it, write a starter
+#                       .gitignore + README, then install into it. Shortcut
+#                       for "I just want to start something from zero."
+#   --yes               accept all wizard defaults without prompting (safe for CI)
+#   --reconfigure       re-run the wizard even if PREFERENCES.md is already filled
 set -euo pipefail
 
-ADAPTER="${1:-}"
-TARGET="${2:-$PWD}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
+# ── Flag parsing ──────────────────────────────────────────────────────────
+# Pull --new-project NAME out of $@ before we compute positional args, because
+# it changes what "target dir" means (spawns one rather than using an existing
+# one). Leaves the other flags for the wizard layer downstream.
+ADAPTER=""
+NEW_PROJECT=""
+POSITIONAL=()
+WIZARD_FLAGS=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --new-project)
+      NEW_PROJECT="${2:-}"
+      if [[ -z "$NEW_PROJECT" ]]; then
+        echo "error: --new-project needs a name" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --new-project=*)
+      NEW_PROJECT="${1#--new-project=}"
+      shift
+      ;;
+    --yes|-y)        WIZARD_FLAGS="$WIZARD_FLAGS --yes";        shift ;;
+    --reconfigure)   WIZARD_FLAGS="$WIZARD_FLAGS --reconfigure"; shift ;;
+    --force)         WIZARD_FLAGS="$WIZARD_FLAGS --force";       shift ;;
+    --help|-h)
+      sed -n '2,11p' "$0" | sed 's/^# //'
+      exit 0
+      ;;
+    --*|-*)
+      echo "warning: unknown flag $1 (passing through to wizard)" >&2
+      shift
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      shift
+      ;;
+  esac
+done
+ADAPTER="${POSITIONAL[0]:-}"
+# TARGET defaults: PWD, or the spawned --new-project dir (resolved below).
+TARGET_POS="${POSITIONAL[1]:-}"
+
 if [[ -z "$ADAPTER" ]]; then
-  echo "usage: $0 <adapter-name> [target-dir]" >&2
+  echo "usage: $0 <adapter-name> [target-dir] [--new-project NAME]" >&2
   echo "adapters: claude-code cursor windsurf opencode openclient hermes standalone-python" >&2
   exit 2
 fi
-
-# Collect wizard flags from any position in $@
-WIZARD_FLAGS=""
-for arg in "$@"; do
-  case "$arg" in
-    --yes|-y)        WIZARD_FLAGS="$WIZARD_FLAGS --yes" ;;
-    --reconfigure)   WIZARD_FLAGS="$WIZARD_FLAGS --reconfigure" ;;
-    --force)         WIZARD_FLAGS="$WIZARD_FLAGS --force" ;;
-  esac
-done
 
 SRC="$HERE/adapters/$ADAPTER"
 if [[ ! -d "$SRC" ]]; then
   echo "error: adapter '$ADAPTER' not found at $SRC" >&2
   exit 1
+fi
+
+# ── --new-project bootstrap ────────────────────────────────────────────────
+# If the user asked for a spawn, create the dir, git init it, and seed the
+# most basic files a human + Claude would expect to find when they open it.
+# We do this BEFORE the adapter copy so the rest of the script sees a normal
+# target dir and doesn't need to care how it was born.
+if [[ -n "$NEW_PROJECT" ]]; then
+  # Resolve relative names against PWD so `install.sh claude-code --new-project foo`
+  # lands `foo/` next to where you called from, not next to install.sh.
+  if [[ "$NEW_PROJECT" = /* ]] || [[ "$NEW_PROJECT" =~ ^[A-Za-z]: ]]; then
+    TARGET="$NEW_PROJECT"
+  else
+    TARGET="$PWD/$NEW_PROJECT"
+  fi
+
+  if [[ -n "$TARGET_POS" ]]; then
+    echo "warning: ignoring positional target-dir '$TARGET_POS' because --new-project was given" >&2
+  fi
+
+  # Refuse to overwrite a non-empty directory - the whole point of
+  # --new-project is "I'm starting from zero." If someone meant to retarget
+  # an existing dir they should drop --new-project.
+  if [[ -e "$TARGET" ]] && [[ -n "$(ls -A "$TARGET" 2>/dev/null || true)" ]]; then
+    echo "error: $TARGET already exists and is non-empty; refusing to bootstrap over it" >&2
+    echo "       drop --new-project and pass the path as target-dir if that's what you want" >&2
+    exit 1
+  fi
+
+  mkdir -p "$TARGET"
+
+  # git init quietly so the output stays clean; swallow failure if git is
+  # absent (rare but possible on minimal CI containers).
+  if command -v git >/dev/null 2>&1; then
+    git -C "$TARGET" init -q
+    echo "  + git init"
+  else
+    echo "  - git not on PATH; skipping git init" >&2
+  fi
+
+  # Minimal .gitignore - just the stuff that shouldn't land in any project,
+  # agnostic of language. Project-specific ignores are the user's job.
+  if [[ ! -f "$TARGET/.gitignore" ]]; then
+    cat > "$TARGET/.gitignore" <<'GITIGNORE'
+# env / secrets
+.env
+.env.local
+*.key
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# runtime logs (auto_dream writes here)
+.agent/memory/dream.log
+*.log
+
+# keep the brain, ignore generated artefacts inside it
+.agent/memory/.index/
+.agent/memory/.index/**
+.agent/memory/working/REVIEW_QUEUE.md
+.agent/memory/working/COVERAGE.md
+.agent/memory/working/coverage.json
+.agent/**/__pycache__/
+.agent/**/*.py[cod]
+GITIGNORE
+    echo "  + .gitignore"
+  fi
+
+  # Starter README so `git status` after install isn't a wall of unexplained
+  # files. Mentions agentic-stack-op so anyone who clones the project later
+  # knows where the .agent/ dir came from.
+  if [[ ! -f "$TARGET/README.md" ]]; then
+    cat > "$TARGET/README.md" <<README
+# $(basename "$TARGET")
+
+Bootstrapped with [agentic-stack-op](https://github.com/claudlos/agentic-stack-op)
+using the \`$ADAPTER\` adapter.
+
+The portable brain is in \`.agent/\`. Your AI harness reads it at the start of
+every session.
+
+## Next steps
+
+- Edit \`.agent/memory/personal/PREFERENCES.md\` to describe how you work
+  (the onboarding wizard just populated it with defaults).
+- Run your AI harness in this directory; it will read \`.agent/AGENTS.md\`
+  on startup and follow the protocol there.
+- Nightly: \`python .agent/memory/auto_dream.py\` to stage candidate
+  lessons and refresh the review queue.
+README
+    echo "  + README.md"
+  fi
+elif [[ -n "$TARGET_POS" ]]; then
+  TARGET="$TARGET_POS"
+else
+  TARGET="$PWD"
 fi
 
 echo "installing '$ADAPTER' into $TARGET"
@@ -42,7 +182,7 @@ if [[ ! -d "$TARGET/.agent" ]]; then
 fi
 
 # Pick the python binary the hooks will actually use on this box. We don't
-# just trust `command -v` — on Windows under git-bash, `python3` resolves to
+# just trust `command -v` - on Windows under git-bash, `python3` resolves to
 # the Microsoft Store app-execution alias, which exists as a stub but prints
 # "Python was not found" when invoked. Probe with --version so a non-working
 # stub doesn't get baked into settings.json.
@@ -115,7 +255,7 @@ if [[ ! -f "$ONBOARD_PY" ]]; then
   exit 0
 fi
 if ! _check_py "$PY_BIN"; then
-  echo "tip: no working python interpreter — edit .agent/memory/personal/PREFERENCES.md manually."
+  echo "tip: no working python interpreter - edit .agent/memory/personal/PREFERENCES.md manually."
   exit 0
 fi
 

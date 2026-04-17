@@ -37,23 +37,35 @@ Full release notes: [v0.6.0 on GitHub](https://github.com/claudlos/agentic-stack
 
 ## Quickstart
 
+**Starting a new project from zero:**
+
 ```bash
 # macOS / Linux / Git Bash
 git clone https://github.com/claudlos/agentic-stack-op.git
 cd agentic-stack-op
-./install.sh claude-code /path/to/your-project
-# adapter: claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
+./install.sh claude-code --new-project my-app --yes
+cd ../my-app   # git-initialised, .gitignore + README seeded, brain installed, ready to code
 ```
 
 ```powershell
-# Windows (PowerShell, native)
+# Windows (PowerShell)
 git clone https://github.com/claudlos/agentic-stack-op.git
 cd agentic-stack-op
-.\install.ps1 claude-code C:\path\to\your-project
+.\install.ps1 claude-code -NewProject my-app -Yes
+cd ..\my-app
+```
+
+**Retrofitting an existing repo:**
+
+```bash
+./install.sh claude-code /path/to/existing-project
+# adapter: claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
 ```
 
 The installer probes `python` / `python3` with `--version` so the
-Microsoft Store stub alias can't silently break your hooks.
+Microsoft Store stub alias can't silently break your hooks. See
+[`docs/recipes.md`](docs/recipes.md) for full walkthroughs (cross-harness
+setup, migration from upstream v0.5.0, cron + daily review).
 
 **Verify it works:**
 
@@ -308,6 +320,7 @@ layer on top without changing the foundation.
 
 Further reading:
 
+- [`docs/recipes.md`](docs/recipes.md) - five end-to-end workflows
 - [`docs/architecture.md`](docs/architecture.md) - full module tour
 - [`docs/meta-harness.md`](docs/meta-harness.md) - the evolve loop
 - [`docs/adapter-parity.md`](docs/adapter-parity.md) - per-harness capability matrix

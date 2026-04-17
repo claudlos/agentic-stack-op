@@ -1,10 +1,13 @@
-# install.ps1 — Windows PowerShell installer (parallel to install.sh)
-# Usage:  .\install.ps1 <adapter-name> [target-dir] [-Yes] [-Reconfigure] [-Force]
-#   adapter-name: claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
-#   target-dir:   where your project lives (default: current dir)
-#   -Yes          accept all wizard defaults (safe for CI)
-#   -Reconfigure  re-run the wizard on an existing project
-#   -Force        overwrite even customized PREFERENCES.md
+# install.ps1 - Windows PowerShell installer (parallel to install.sh)
+# Usage:  .\install.ps1 <adapter-name> [target-dir] [-NewProject NAME] [-Yes] [-Reconfigure] [-Force]
+#   adapter-name:     claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
+#   target-dir:       where your project lives (default: current dir)
+#   -NewProject NAME  create a fresh dir NAME, git init it, seed .gitignore
+#                     and README, then install into it. Shortcut for "I'm
+#                     starting something from zero."
+#   -Yes              accept all wizard defaults (safe for CI)
+#   -Reconfigure      re-run the wizard on an existing project
+#   -Force            overwrite even customized PREFERENCES.md
 
 [CmdletBinding()]
 param(
@@ -14,6 +17,7 @@ param(
     [Parameter(Position = 1)]
     [string]$TargetDir = (Get-Location).Path,
 
+    [string]$NewProject = "",
     [switch]$Yes,
     [switch]$Reconfigure,
     [switch]$Force
@@ -36,6 +40,93 @@ $Src = Join-Path $Here "adapters/$Adapter"
 if (-not (Test-Path $Src -PathType Container)) {
     Write-Error "adapter '$Adapter' not found at $Src"
     exit 1
+}
+
+# ── -NewProject bootstrap ──────────────────────────────────────────────
+# Resolve relative names against the caller's CWD so `.\install.ps1
+# claude-code -NewProject foo` lands `foo\` next to where you ran it from.
+# Refuse to bootstrap over a non-empty dir so --new-project always means a
+# clean slate; pass target-dir positionally if you meant to retarget.
+if ($NewProject) {
+    if ([System.IO.Path]::IsPathRooted($NewProject)) {
+        $TargetDir = $NewProject
+    } else {
+        $TargetDir = Join-Path (Get-Location).Path $NewProject
+    }
+
+    if ((Test-Path $TargetDir) -and (Get-ChildItem -Force $TargetDir | Select-Object -First 1)) {
+        Write-Error "$TargetDir already exists and is non-empty; refusing to bootstrap over it. Drop -NewProject and pass the path positionally if that's what you want."
+        exit 1
+    }
+    New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
+
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        git -C $TargetDir init -q
+        Write-Host "  + git init"
+    } else {
+        Write-Warning "git not on PATH; skipping git init"
+    }
+
+    $giPath = Join-Path $TargetDir '.gitignore'
+    if (-not (Test-Path $giPath)) {
+        @'
+# env / secrets
+.env
+.env.local
+*.key
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# runtime logs (auto_dream writes here)
+.agent/memory/dream.log
+*.log
+
+# keep the brain, ignore generated artefacts inside it
+.agent/memory/.index/
+.agent/memory/.index/**
+.agent/memory/working/REVIEW_QUEUE.md
+.agent/memory/working/COVERAGE.md
+.agent/memory/working/coverage.json
+.agent/**/__pycache__/
+.agent/**/*.py[cod]
+'@ | Set-Content -NoNewline -Path $giPath
+        Write-Host "  + .gitignore"
+    }
+
+    $readmePath = Join-Path $TargetDir 'README.md'
+    if (-not (Test-Path $readmePath)) {
+        $projName = Split-Path -Leaf $TargetDir
+        @"
+# $projName
+
+Bootstrapped with [agentic-stack-op](https://github.com/claudlos/agentic-stack-op)
+using the ``$Adapter`` adapter.
+
+The portable brain is in ``.agent/``. Your AI harness reads it at the start of
+every session.
+
+## Next steps
+
+- Edit ``.agent/memory/personal/PREFERENCES.md`` to describe how you work
+  (the onboarding wizard just populated it with defaults).
+- Run your AI harness in this directory; it will read ``.agent/AGENTS.md``
+  on startup and follow the protocol there.
+- Nightly: ``python .agent/memory/auto_dream.py`` to stage candidate
+  lessons and refresh the review queue.
+"@ | Set-Content -NoNewline -Path $readmePath
+        Write-Host "  + README.md"
+    }
 }
 
 Write-Host "installing '$Adapter' into $TargetDir"
@@ -129,12 +220,8 @@ if (-not (Test-Path $OnboardPy -PathType Leaf)) {
     exit 0
 }
 
-$python = Get-Command python3 -ErrorAction SilentlyContinue
-if (-not $python) {
-    $python = Get-Command python -ErrorAction SilentlyContinue
-}
-if (-not $python) {
-    Write-Host "tip: python3/python not found on PATH — edit .agent\memory\personal\PREFERENCES.md manually."
+if (-not (Test-PythonBinary $PyBin)) {
+    Write-Host "tip: no working python interpreter - edit .agent\memory\personal\PREFERENCES.md manually."
     exit 0
 }
 
@@ -143,5 +230,5 @@ if ($Yes)         { $wizardArgs += '--yes' }
 if ($Reconfigure) { $wizardArgs += '--reconfigure' }
 if ($Force)       { $wizardArgs += '--force' }
 
-& $python.Source @wizardArgs
+& $PyBin @wizardArgs
 exit $LASTEXITCODE
