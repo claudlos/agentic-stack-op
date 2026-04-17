@@ -1,304 +1,318 @@
 # agentic-stack-op
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/claudlos/agentic-stack-op/actions/workflows/ci.yml/badge.svg)](https://github.com/claudlos/agentic-stack-op/actions/workflows/ci.yml)
+[![v0.6.0](https://img.shields.io/github/v/release/claudlos/agentic-stack-op)](https://github.com/claudlos/agentic-stack-op/releases/latest)
 
-> **Extends [codejunkie99/agentic-stack](https://github.com/codejunkie99/agentic-stack)**
-> by [@AV1DLIVE](https://twitter.com/AV1DLIVE) (MIT). All original design, seed
-> skills, and review protocol credit to the upstream author. This fork adds a
-> meta-harness layer: eval-gated skill rewrites, structured traces with
-> cross-harness provenance, policy-as-code permissions, a real Hermes bridge,
-> a harness-coverage metric, and a `switchtest` equivalence suite. See the
-> v0.6.0 entry below.
+> **One brain, many harnesses - now measured.** A portable `.agent/` folder
+> (memory + skills + protocols) that plugs into Claude Code, Cursor, Windsurf,
+> OpenCode, OpenClient, Hermes, or a DIY Python loop and keeps its knowledge
+> when you switch. This fork adds a **meta-harness layer** that makes the
+> brain self-evaluating: every skill has a deterministic score, every
+> episodic entry is a replayable trace, and CI proves harness-parity instead
+> of asserting it.
 
->> **Coded using Minimax-M2.7 in the Claude Code Harness. PR Review by Macroscope and Codex**
-
-> **One brain, many harnesses.** A portable `.agent/` folder (memory + skills
-> + protocols) that plugs into Claude Code, Cursor, Windsurf, OpenCode,
-> OpenClient, Hermes, or a DIY Python loop, and keeps its knowledge when
-> you switch.
-
-<p align="center">
-  <img src="docs/demo.gif" alt="agentic-stack demo" width="880"/>
-</p>
+> Extends [codejunkie99/agentic-stack](https://github.com/codejunkie99/agentic-stack)
+> (MIT, by [@AV1DLIVE](https://twitter.com/AV1DLIVE)). All original design,
+> seed skills, memory architecture, and review protocol credit to the
+> upstream author. See [docs/meta-harness.md](docs/meta-harness.md) for
+> what's new and why it matters.
 
 <p align="center">
   <img src="docs/diagram.svg" alt="agentic-stack architecture" width="880"/>
 </p>
 
+## Why this fork
 
-Based on the article:
-**["The Agentic Stack"](https://x.com/Av1dlive/status/2044453102703841645?s=20)** · by [@AV1DLIVE](https://twitter.com/AV1DLIVE)
+| Upstream v0.5.0 | This fork, v0.6.0 |
+|---|---|
+| Skills have self-rewrite hooks but nothing scores them | `evolve.py` scores rewrites against per-skill `eval.json` + live failure log; refuses regressions |
+| Episodic log is free-form text | Structured trace fields (`tool`, `tool_args`, `tool_output`, `exit_code`, `duration_ms`) + provenance (`source.harness`, `source.model`) |
+| `permissions.md` hand-edited; Claude Code deny list hand-edited; can drift | `permissions.json` is the source of truth; installer renders both; CI fails on drift |
+| Hermes adapter = an `AGENTS.md` pointer | Real `hermes_sync.py` bridge mirroring lessons into Hermes's `MEMORY.md` / `USER.md` (sentinel-guarded, idempotent) |
+| "One brain, many harnesses" was a claim | `examples/switchtest/` has 5 equivalence checks that **fail the build** if the claim breaks |
+| Harness health was unknowable | `coverage.py` writes `COVERAGE.md`: guide %, sensor %, harness mix, dead skills, rewrite-flagged |
 
----
-
-## What this is
-
-Every guide shows the folder structure. This repo gives you the folder
-structure **plus the files that actually go inside**: a working portable
-brain with five seed skills, four memory layers, enforced permissions, a
-nightly staging cycle, host-agent review tools, and adapters for seven
-harnesses.
-
-- **Memory** — `working/`, `episodic/`, `semantic/`, `personal/`. Each
-  layer has its own retention policy. Query-aware retrieval (salience ×
-  relevance); nightly compression into reviewable candidates.
-- **Review protocol** — `auto_dream.py` stages candidate lessons
-  mechanically. Your host agent reviews them via CLI tools
-  (`graduate.py`, `reject.py`, `reopen.py`) and commits decisions with
-  a required rationale. No unattended reasoning, no provider coupling.
-- **Skills** — progressive disclosure. A lightweight manifest always
-  loads; full `SKILL.md` files only load when triggers match the task.
-  Every skill ships with a self-rewrite hook.
-- **Protocols** — typed tool schemas, a `permissions.md` that the
-  pre-tool-call hook enforces, and a delegation contract for sub-agents.
-
-## What's new in v0.6.0 (meta-harness)
-
-- **Evolve loop.** `.agent/tools/evolve.py` + per-skill `evals/eval.json`
-  let flagged skills get rewritten with a deterministic score gate. No
-  LLM in the loop; see `docs/meta-harness.md`.
-- **Structured traces + cross-harness provenance.** Episodic entries now
-  carry `tool`, `tool_args`, `tool_output`, `duration_ms`, `exit_code`,
-  `source.harness`, `source.model`. Clusters and candidates carry the
-  harness / model / tool roll-up, so graduation can scope a lesson to
-  one harness when the evidence only comes from there.
-- **Policy-as-code permissions.** `protocols/permissions.json` is the
-  source of truth; `permissions.md` and the Claude Code deny list are
-  rendered via `tools/permissions_render.py`. CI catches drift.
-- **Hermes bridge.** `tools/hermes_sync.py` mirrors accepted lessons +
-  preferences into Hermes's `MEMORY.md` / `USER.md` between HTML
-  sentinels. Idempotent, `state.db` untouched.
-- **Harness-coverage metric.** `tools/coverage.py` writes
-  `memory/working/COVERAGE.md`: guide %, sensor %, harness mix, dead
-  skills, rewrite-flagged list. Answers Fowler's "what's the harness
-  equivalent of code coverage?".
-- **switchtest equivalence suite.** `examples/switchtest/run_switchtest.py`
-  proves install-parity, trace-parity, cluster-parity, and permission-
-  safety-parity across adapters. Runs in CI.
-- **CI on Linux + Windows.** `.github/workflows/ci.yml` runs the full
-  smoke suite on both shells so the "Windows-native" claim is enforced,
-  not aspirational.
-- **Windows fixes.** Installer now probes `python` / `python3` by
-  running `--version` so the MS Store stub alias can't get baked into
-  hook commands. Wizard reconfigures stdout to UTF-8 on Windows.
-
-## What's new in v0.5.0
-
-- **Host-agent review protocol.** Python handles filing (cluster, stage,
-  heuristic prefilter, decay). The host agent handles reasoning via
-  `list_candidates.py` / `graduate.py` / `reject.py` / `reopen.py`.
-  Graduation requires `--rationale` so rubber-stamping is structurally
-  impossible.
-- **Structured `lessons.jsonl` as source of truth.** `LESSONS.md` is
-  rendered from it. Hand-curated content above the sentinel is
-  preserved across renders; legacy bullets auto-migrate on first run.
-- **Content clustering.** Proper single-linkage Jaccard with bridge
-  merging. Pattern IDs derived from canonical claim + conditions, stable
-  across cluster-membership changes.
-- **[BETA] FTS5 memory search.** Opt-in full-text search over all
-  `.md` / `.jsonl` memory documents. Default **off**; enable during
-  onboarding or edit `.agent/memory/.features.json` directly.
-- **Windows-native installer.** `install.ps1` runs natively in
-  PowerShell; `install.sh` continues to work under Git Bash / WSL.
+Full release notes: [v0.6.0 on GitHub](https://github.com/claudlos/agentic-stack-op/releases/tag/v0.6.0).
 
 ## Quickstart
 
-Clone-only for this fork right now. A Homebrew formula is pending a tagged
-tap repo; until then, the install script is the canonical path.
-
-### macOS / Linux / Git Bash
-
 ```bash
+# macOS / Linux / Git Bash
 git clone https://github.com/claudlos/agentic-stack-op.git
 cd agentic-stack-op
 ./install.sh claude-code /path/to/your-project
-# or: cursor | windsurf | opencode | openclient | hermes | standalone-python
+# adapter: claude-code | cursor | windsurf | opencode | openclient | hermes | standalone-python
 ```
 
-### Windows (PowerShell)
-
 ```powershell
+# Windows (PowerShell, native)
 git clone https://github.com/claudlos/agentic-stack-op.git
 cd agentic-stack-op
 .\install.ps1 claude-code C:\path\to\your-project
 ```
 
-### Upstream stable
+The installer probes `python` / `python3` with `--version` so the
+Microsoft Store stub alias can't silently break your hooks.
 
-The stable base this fork builds on is
-[codejunkie99/agentic-stack](https://github.com/codejunkie99/agentic-stack).
-If you want the v0.5.0 release via Homebrew (no meta-harness layer), follow
-the upstream README - those instructions still work.
-
-## Onboarding wizard
-
-After the adapter is installed, a terminal wizard populates
-`.agent/memory/personal/PREFERENCES.md` — the **first file your AI reads
-at the start of every session** — and writes a feature-toggle file at
-`.agent/memory/.features.json`.
-
-Six preference questions (each skippable with Enter):
-
-| Question | Default |
-|---|---|
-| What should I call you? | *(skip)* |
-| Primary language(s)? | `unspecified` |
-| Explanation style? | `concise` |
-| Test strategy? | `test-after` |
-| Commit message style? | `conventional commits` |
-| Code review depth? | `critical issues only` |
-
-Plus one **Optional features** step (opt-in, off by default):
-
-| Feature | Default |
-|---|---|
-| Enable FTS memory search `[BETA]` | `no` |
-
-**Flags:**
+**Verify it works:**
 
 ```bash
-agentic-stack claude-code --yes          # accept all defaults, beta off (CI/scripted)
-agentic-stack claude-code --reconfigure  # re-run the wizard on an existing project
+python examples/switchtest/run_switchtest.py
+# [1/5] install parity across adapters
+#   PASS all 7 adapters receive identical .agent/ trees
+# [2/5] trace parity across harness labels
+#   PASS same trace under 3 different harness labels differs only in source.harness
+# [3/5] cluster parity surfaces cross-harness patterns
+#   PASS cross-harness pattern carries both harness and model labels
+# [4/5] permission safety parity (JSON >= markdown fallback)
+#   PASS JSON path >= markdown fallback on all cases
+# [5/5] stdin hook parser handles Claude Code PostToolUse payload
+#   PASS Claude Code JSON payload lands as structured episodic entry
+# 5/5 checks passed
 ```
 
-Edit `.agent/memory/personal/PREFERENCES.md` any time to refine your
-conventions, or `.agent/memory/.features.json` to flip feature toggles.
+## What you get
+
+**Memory - four layers.** `working/` (live task state + auto-generated
+`REVIEW_QUEUE.md` + `COVERAGE.md`), `episodic/` (every action as a
+structured trace), `semantic/` (distilled lessons, `lessons.jsonl` is
+source of truth, `LESSONS.md` is rendered), `personal/` (user
+conventions, never merged into semantic).
+
+**Skills - progressive disclosure.** A lightweight `_manifest.jsonl`
+always loads; full `SKILL.md` only loads when triggers match the task.
+Every skill ships with a self-rewrite hook and an `evals/eval.json`
+that describes what a rewrite must preserve.
+
+**Protocols - policy-as-code.** `permissions.json` is the source of
+truth. `permissions.md` (human) and `.claude-deny.json` (adapter) are
+rendered from it. `pre_tool_call.py` reads the JSON directly; CI
+(`permissions_render.py --check`) fails if any rendered artefact drifts.
+
+**Review protocol.** `auto_dream.py` stages candidate lessons
+mechanically; it does not reason. Your host agent reviews via
+`list_candidates.py` / `graduate.py` / `reject.py` / `reopen.py` - each
+decision records a required rationale. No unattended reasoning, no
+provider coupling.
+
+## The meta-harness loop
+
+When a skill fails 3+ times in 14 days, `on_failure.py` sets a
+rewrite flag. The host agent sees it in `REVIEW_QUEUE.md` at session
+start and runs:
+
+```bash
+# 1. Emit a rewrite brief (current SKILL.md + recent failures + dynamic keywords)
+python .agent/tools/evolve.py prepare debug-investigator
+
+# 2. Host agent writes its rewrite to skills/debug-investigator/candidate-SKILL.md
+
+# 3. Score both and compare
+python .agent/tools/evolve.py compare debug-investigator \
+    --candidate .agent/skills/debug-investigator/candidate-SKILL.md
+# === debug-investigator (current)  ->  score 80 ===
+#   +10  required_section  [ok] ## The loop
+#   +15  preserved_constraint  [ok] reproduce before fixing
+#   ...
+# === candidate.md  ->  score -40 ===
+#   +0   required_section  [miss] ## The loop
+#   -5   preserved_constraint  [miss] reproduce before fixing
+#   ...
+# CANDIDATE LOSES by 120 points. REGRESSION.
+
+# 4. Accept (refuses regressions unless --force)
+python .agent/tools/evolve.py accept debug-investigator --candidate <path>
+```
+
+Scoring is deterministic: required sections, preserved constraints,
+forbidden patterns, length bounds, trigger coverage, *plus* dynamic
+failure keywords from the last 14 days of `AGENT_LEARNINGS.jsonl`. A
+rewrite that doesn't reference the failures that triggered it can't
+beat the original. No LLM in the loop. Full details in
+[`docs/meta-harness.md`](docs/meta-harness.md).
 
 ## Review protocol (host-agent CLI)
 
-The nightly `auto_dream.py` cycle only **stages** candidate lessons. It
-does not mark anything accepted or modify semantic memory. Your host
-agent does the review in-session:
-
 ```bash
-# list pending candidates, sorted by priority
-python3 .agent/tools/list_candidates.py
+# Pending candidates + skills flagged for rewrite (auto-generated by auto_dream)
+cat .agent/memory/working/REVIEW_QUEUE.md
 
-# accept with rationale (required)
-python3 .agent/tools/graduate.py <id> --rationale "evidence holds, matches PREFERENCES"
+# Detail on a candidate
+python .agent/tools/list_candidates.py
 
-# reject with reason (required); preserves decision history
-python3 .agent/tools/reject.py <id> --reason "too specific to generalize"
+# Accept with rationale (required)
+python .agent/tools/graduate.py <id> --rationale "evidence holds, matches PREFERENCES"
 
-# requeue a previously-rejected candidate
-python3 .agent/tools/reopen.py <id>
+# Scope a lesson to one harness if evidence only came from there
+python .agent/tools/graduate.py <id> --rationale "..." --scope-to-harness cursor
+
+# Reject with reason (required); preserves decision history
+python .agent/tools/reject.py <id> --reason "too specific to generalize"
 ```
 
-Graduated lessons land in `semantic/lessons.jsonl` (source of truth) and
-are rendered to `semantic/LESSONS.md`. Rejected candidates retain full
-decision history so recurring churn is visible, not fresh.
+Graduated lessons append to `semantic/lessons.jsonl`; `LESSONS.md`
+re-renders. Rejected candidates retain full decision history so
+recurring churn is visible, not fresh each time.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full lifecycle.
-
-## Memory search `[BETA]`
-
-Opt-in FTS5 keyword search over all memory documents:
+## Observability
 
 ```bash
-# enable during onboarding (or set manually in .agent/memory/.features.json)
-python3 .agent/memory/memory_search.py "deploy failure"
-python3 .agent/memory/memory_search.py --status
-python3 .agent/memory/memory_search.py --rebuild
+python .agent/tools/coverage.py  # writes memory/working/COVERAGE.md
+# Entries: 412   Failures: 31 (7.5%)
+# Guide coverage:       92.4%   (tool tag present)
+# Sensor coverage:      81.3%   (reflection or tool_output)
+# Structured trace:     78.6%
+# Harness mix: claude-code: 310, cursor: 78, unknown: 24 (5.8%)
+# Dead skills: skillforge  (triggers may be stale)
+# Flagged for rewrite:  deploy-checklist -> python .agent/tools/evolve.py prepare deploy-checklist
 ```
 
-Falls back to **ripgrep** (`rg`) if installed, then to `grep` — both
-restricted to `.md` / `.jsonl` so source files never pollute results.
-The index is stored at `.agent/memory/.index/` and gitignored.
+Runs inside `auto_dream.py` so the file stays fresh alongside the review
+queue. `unknown` harness share > 10% means auto-detection in
+`_provenance.py` broke - check `AGENT_HARNESS` in your adapter shell.
+
+## Adapters
+
+Seven adapters, honest capability matrix in
+[`docs/adapter-parity.md`](docs/adapter-parity.md). Summary:
+
+- **Claude Code** - first-class. Hooks, deny rules from `permissions.json`,
+  harness auto-detected via `CLAUDECODE=1`.
+- **OpenCode** - permission rules in `opencode.json`; no execution hook.
+- **Cursor / Windsurf / OpenClient** - read `.agent/`; no pre/post-tool
+  hook API available upstream, so memory logging is manual (call
+  `memory_reflect.py` from skills).
+- **Hermes** - reads `AGENTS.md`. Bridge (`hermes_sync.py`) mirrors
+  accepted lessons into Hermes's native `MEMORY.md` / `USER.md`.
+- **Standalone Python** - full hook control; reference conductor in
+  `.agent/harness/conductor.py`.
 
 ## Repo layout
 
 ```
-.agent/                         # the portable brain (same across harnesses)
-├── AGENTS.md                   # the map
-├── harness/                    # conductor + hooks (standalone path)
-├── memory/                     # working / episodic / semantic / personal
-│   ├── auto_dream.py           # staging-only dream cycle
-│   ├── cluster.py              # content clustering + pattern extraction
-│   ├── promote.py              # stage candidates
-│   ├── validate.py             # heuristic prefilter (length + exact duplicate)
-│   ├── review_state.py         # candidate lifecycle + decision log
-│   ├── render_lessons.py       # lessons.jsonl → LESSONS.md
-│   └── memory_search.py        # [BETA] FTS5 search (opt-in)
-├── skills/                     # _index.md + _manifest.jsonl + SKILL.md files
-├── protocols/                  # permissions + tool schemas + delegation
-└── tools/                      # host-agent CLI + memory_reflect + skill_loader
-    ├── list_candidates.py
-    ├── graduate.py
-    ├── reject.py
-    └── reopen.py
+.agent/                         # the portable brain (byte-identical across adapters)
+|-- AGENTS.md                   # the map, incl. meta-harness pointers
+|-- harness/                    # conductor + hooks (standalone path)
+|   |-- hooks/
+|   |   |-- _provenance.py      # harness + model auto-detection
+|   |   |-- post_execution.py   # structured trace logger
+|   |   |-- pre_tool_call.py    # JSON-policy enforcement
+|   |   |-- on_failure.py       # 3-in-14d -> rewrite_flag
+|   |   +-- __init__.py
+|   +-- {conductor, context_budget, salience, text, llm}.py
+|-- memory/                     # working / episodic / semantic / personal
+|   |-- auto_dream.py           # staging-only dream cycle + coverage refresh
+|   |-- cluster.py              # content clustering + harness/model roll-up
+|   |-- promote.py  validate.py  review_state.py  render_lessons.py
+|   |-- decay.py  archive.py
+|   +-- memory_search.py        # [BETA] FTS5 search (opt-in)
+|-- skills/
+|   |-- _index.md  _manifest.jsonl
+|   |-- _eval.schema.json                        # NEW
+|   +-- <skill>/
+|       |-- SKILL.md
+|       |-- KNOWLEDGE.md        # (optional)
+|       |-- evals/eval.json     # NEW: scored by evolve.py
+|       +-- _history/           # NEW: auto-archived previous versions
+|-- protocols/
+|   |-- permissions.json        # NEW: source of truth
+|   |-- permissions.schema.json # NEW: drift guard
+|   |-- permissions.md          # rendered
+|   |-- .claude-deny.json       # rendered for installer
+|   |-- tool_schemas/
+|   +-- delegation.md
++-- tools/
+    |-- memory_reflect.py       # +--stdin JSON intake for Claude Code hooks
+    |-- list_candidates.py  graduate.py  reject.py  reopen.py
+    |-- evolve.py               # NEW: score/compare/prepare/accept
+    |-- coverage.py             # NEW: harness coverage metric
+    |-- hermes_sync.py          # NEW: Hermes bridge
+    |-- permissions_render.py   # NEW: render permissions.json
+    |-- render_claude_settings.py  # NEW: merge deny into settings.json
+    |-- validate_schemas.py     # NEW: stdlib JSON-shape validator
+    +-- skill_loader.py
 
 adapters/                       # one small shim per harness
-├── claude-code/   (CLAUDE.md + settings.json hooks)
-├── cursor/        (.cursor/rules/*.mdc)
-├── windsurf/      (.windsurfrules)
-├── opencode/      (AGENTS.md + opencode.json)
-├── openclient/    (system-prompt include)
-├── hermes/        (AGENTS.md)
-└── standalone-python/  (DIY conductor entrypoint)
-
-docs/                           # architecture, getting-started, per-harness
-install.sh                      # mac / linux / git-bash installer
-install.ps1                     # Windows PowerShell installer
-onboard.py                      # onboarding wizard entry point
-onboard_features.py             # .features.json read/write
-onboard_ui.py                   # ANSI palette, banner, clack-style layout
-onboard_widgets.py              # arrow-key prompts (text, select, confirm)
-onboard_render.py               # answers → PREFERENCES.md content
-onboard_write.py                # atomic file write with backup
+docs/                           # architecture, meta-harness, adapter-parity, writing-skills
+examples/
+|-- first_run.py
++-- switchtest/                 # NEW: 5-check equivalence suite
+install.sh  install.ps1         # with working-python probe
+onboard.py  onboard_*.py        # wizard (UTF-8-safe on Windows)
 ```
 
-## Supported harnesses
+## Requirements
 
-| Harness | Config file it reads | Hook support |
-|---|---|---|
-| **Claude Code** | `CLAUDE.md` + `.claude/settings.json` | yes (PostToolUse, Stop) |
-| **Cursor** | `.cursor/rules/*.mdc` | no (manual reflect calls) |
-| **Windsurf** | `.windsurfrules` | no (manual reflect calls) |
-| **OpenCode** | `AGENTS.md` + `opencode.json` | partial (permission rules) |
-| **OpenClient** | system-prompt include | varies by fork |
-| **Hermes Agent** | `AGENTS.md` (agentskills.io compatible) | partial (own memory) |
-| **Standalone Python** | `run.py` (any LLM) | yes (full control) |
+- Python 3.9+ (3.11 used in CI).
+- Git (for commit_sha in provenance; optional).
+- That's it. The whole brain is stdlib - no jsonschema, no yaml, nothing
+  to `pip install`.
 
-## Seed skills
-
-- **skillforge** — creates new skills from recurring patterns
-- **memory-manager** — runs reflection cycles, surfaces candidate lessons
-- **git-proxy** — all git ops, with safety constraints
-- **debug-investigator** — reproduce → isolate → hypothesize → verify
-- **deploy-checklist** — the fence between staging and production
-
-## How it compounds
-
-1. Skills log every action to episodic memory.
-2. `auto_dream.py` clusters recurring patterns into candidate lessons.
-3. The host agent reviews candidates with `graduate.py` / `reject.py`.
-4. Graduated lessons append to `lessons.jsonl`; `LESSONS.md` re-renders.
-5. Future sessions load query-relevant accepted lessons automatically.
-6. `on_failure` flags skills that fail 3+ times in 14 days for rewrite.
-7. `git log .agent/memory/` becomes the agent's autobiography.
-
-## Run the staging cycle nightly
+## Run it unattended
 
 ```bash
 crontab -e
-0 3 * * * python3 /path/to/project/.agent/memory/auto_dream.py >> /path/to/project/.agent/memory/dream.log 2>&1
+0 3 * * * python /path/to/project/.agent/memory/auto_dream.py >> /path/to/project/.agent/memory/dream.log 2>&1
 ```
 
-`auto_dream.py` resolves its paths absolutely and performs only mechanical
-file operations (cluster, stage, prefilter, decay). No git commits, no
-network, no reasoning — safe to run unattended.
+One cron entry refreshes both `REVIEW_QUEUE.md` (pending candidates +
+rewrite flags) and `COVERAGE.md`. `auto_dream.py` only does mechanical
+file operations - no git commits, no network, no reasoning.
 
-## License
+## Limitations
 
-MIT — see [LICENSE](LICENSE).
+Being honest about what `v0.6.0` doesn't do:
 
-## Credits
+- **No LLM judge.** All scoring in `evolve.py` is computational per
+  Fowler's harness-engineering frame. An inferential sensor would catch
+  semantic regressions this can't (skill rewrites that technically
+  preserve sections but mangle meaning). Out of scope for a no-dep
+  stdlib tool.
+- **Cursor / Windsurf / OpenClient hooks.** No upstream hook API, so
+  logging on those harnesses is operator-driven (skills call
+  `memory_reflect.py` themselves). Watcher-daemon approach sketched in
+  `docs/adapter-parity.md`, not built.
+- **Hermes `state.db` one-way.** The bridge mirrors into Hermes; it does
+  not read Hermes's SQLite back. That schema is a moving target and a
+  bad write could wipe a session.
+- **No end-to-end LLM test.** `switchtest` proves install / trace /
+  cluster / permission parity, not agent-behavior parity. An
+  LLM-in-the-loop suite (`examples/switchtest/live/`) is future work.
+- **No Homebrew tap yet.** Clone-only for this fork. A tap repo + tagged
+  Formula will land when there's signal it's wanted.
 
-Design adapted from the author's article on building an agentic stack, plus
-patterns from Gstack, Claude Code's memory system, and conversations in
-the agent-engineering community. Built with the hypothesis that
-**harness-agnosticism is the point**.
+## Contributing
+
+PRs welcome. The sanity gates are:
+
+```bash
+python examples/switchtest/run_switchtest.py       # must stay 5/5
+python .agent/tools/validate_schemas.py            # JSON shapes
+python .agent/tools/permissions_render.py --check  # no policy drift
+```
+
+CI runs all three on Linux + Windows for every push and PR.
+
+## License & credits
+
+MIT - see [LICENSE](LICENSE).
+
+Upstream: [codejunkie99/agentic-stack](https://github.com/codejunkie99/agentic-stack)
+by [@AV1DLIVE](https://twitter.com/AV1DLIVE). The original design is
+based on the article
+[**"The Agentic Stack"**](https://x.com/Av1dlive/status/2044453102703841645?s=20)
+by the same author - the memory layering, review protocol, and
+harness-agnostic philosophy are all theirs. This fork adds a meta-harness
+layer on top without changing the foundation.
+
+Further reading:
+
+- [`docs/architecture.md`](docs/architecture.md) - full module tour
+- [`docs/meta-harness.md`](docs/meta-harness.md) - the evolve loop
+- [`docs/adapter-parity.md`](docs/adapter-parity.md) - per-harness capability matrix
+- [`docs/writing-skills.md`](docs/writing-skills.md) - skill + eval authoring
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=codejunkie99/agentic-stack&type=Date)](https://star-history.com/#codejunkie99/agentic-stack&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=claudlos/agentic-stack-op&type=Date)](https://star-history.com/#claudlos/agentic-stack-op&Date)
